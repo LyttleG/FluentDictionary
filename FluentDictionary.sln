@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.12.35527.113
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FluentDictionary", "Library\FluentDictionary.csproj", "{916483F0-2C98-41C9-9CD7-EFA88DFF528B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestsFluentDictionary", "Tests\TestsFluentDictionary.csproj", "{EC863F4C-4056-472E-84C7-00D6ABAA4764}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{916483F0-2C98-41C9-9CD7-EFA88DFF528B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{916483F0-2C98-41C9-9CD7-EFA88DFF528B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{916483F0-2C98-41C9-9CD7-EFA88DFF528B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{916483F0-2C98-41C9-9CD7-EFA88DFF528B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EC863F4C-4056-472E-84C7-00D6ABAA4764}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EC863F4C-4056-472E-84C7-00D6ABAA4764}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EC863F4C-4056-472E-84C7-00D6ABAA4764}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EC863F4C-4056-472E-84C7-00D6ABAA4764}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

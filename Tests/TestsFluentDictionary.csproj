@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net9.0</TargetFramework>
+		<Nullable>enable</Nullable>
+
+		<Description>
+			Test fluent wrapper implementation around <see cref="Dictionary{TKey, TValue}"/>, providing additional functionality for serialization and fluent creation.
+		</Description>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Library\FluentDictionary.csproj" />
+	</ItemGroup>
+
+</Project>
