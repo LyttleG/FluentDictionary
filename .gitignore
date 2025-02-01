@@ -1,0 +1,10 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/.vs
+/Library/obj
+/Tests/obj
+/.idea/.idea.FluentDictionary/.idea
+/Library/bin/Debug
+/Tests/bin/Debug/net9.0
