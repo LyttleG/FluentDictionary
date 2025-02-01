@@ -1,147 +1,213 @@
-# Dictionary Extensions
+# FluentDictionary
 
-A set of extension methods for safe and efficient manipulation of `Dictionary<TKey, TValue>` in C#.
+**Safe, atomic dictionary operations** with null safety and fluent patterns for modern C# development.
+This library provides a fluent wrapper around the standard `Dictionary<TKey, TValue>` in C#, offering additional functionality for serialization and fluent creation.
 
-## Features
+## 📦 Installation
 
-- **Null-safe operations**: Gracefully handles null dictionary references
-- **Atomic operations**: Combined get/add and add/update functionality
-- **Efficient**: Uses `CollectionsMarshal` for performance optimizations
-- **Clear behavior**: Consistent return patterns for all operations
+1. Add the `FluentDictionary.cs` and `DictionaryExtensions.cs` files to your project.
+2. Add `using FluentDictionary;` and `using FluentDictionary.Extensions;` to your files.
 
-## Behavior Comparison
+## 🚀 Key Features
 
-| Function               | TryGetOrAdd            | TryUpdate   | TryAddOrUpdate   | TryDelete (*)    |
-|------------------------|------------------------|-------------|------------------|------------------|
-| **Key exists**         | `Get → existing value` | `true`      | `Update → false` | `true (* value)` |
-| **Key does not exist** | `Add → value`          | `false`     | `Add → true`     | `false`          |
-| **Null dictionary**    | `default(TValue)`      | `false`     | `false`          | `false`          |
+| Method            | Null-Safe | Atomic  | Factory Support | Value Return | Behavior Summary |
+|-------------------|-----------|---------|-----------------|--------------|------------------|
+| `TryGetOrAdd`     | ✅        | ✅     | ✅              | Current/New  | Get or initialize|
+| `TryUpdate`       | ✅        | ✅     | ✅              | Success      | Mutate existing  |
+| `TryAddOrUpdate`  | ✅        | ✅     | ✅              | Add Status   | Upsert operation |
+| `TryDelete`       | ✅        | ✅     | ❌              | Success + Val| Remove cleanly   |
 
-## Methods
+## 💻 Usage Examples
 
-### `TryGetOrAdd`
+### Basic CRUD Operations
 
 ```csharp
-public static TValue? TryGetOrAdd<TKey, TValue>(
-    this Dictionary<TKey, TValue> dict, 
-    TKey key, 
-    TValue? valueToAdd)
+var features = new Dictionary<string, bool>();
+
+// Add/Retrieve
+var darkMode = features.TryGetOrAdd("DarkMode", k => true);
+
+// Update
+features.TryUpdate("DarkMode", false);
+
+// Upsert
+var isNew = features.TryAddOrUpdate("Experimental", true);
+
+// Delete
+if (features.TryDelete("DarkMode", out var removedValue))
+    Console.WriteLine($"Removed feature: {removedValue}");
 ```
 
-**Description**  
-Retrieves an existing value or adds a new entry if the key doesn't exist.
+### Inventory Management
 
-**Parameters**:
-- `dict`: Target dictionary
-- `key`: Key to lookup
-- `valueToAdd`: Value to add if key doesn't exist
+```csharp
+private static int GetRestockCount(string key) => 42;
 
-**Returns**:  
-Existing value if found, otherwise `valueToAdd` TValue
+var stock = new Dictionary<string, int>();
+
+// Restock items
+stock.TryAddOrUpdate("Widget", 100);
+stock.TryAddOrUpdate("Gadget", key => GetRestockCount(key));
+
+// Sell items
+stock.TryUpdate("Widget", current => Math.Max(0, GetRestockCount(current) - 5));
+
+// Check inventory
+var widgetCount = stock.TryGetOrAdd("Widget", 0);
+var obsoleteCount = stock.TryDelete("OldModel");
+```
+
+### Configuration Management
+
+```csharp
+private static void SecureWipe(object? key) { }
+
+var config = new Dictionary<string, object>();
+
+// Initialize with defaults
+config.TryGetOrAdd("Timeout", 30000);
+config.TryGetOrAdd("Retries", key => Environment.GetEnvironmentVariable("RETRIES") ?? "1");
+
+// Environment override
+config.TryAddOrUpdate("ApiUrl", key => Environment.GetEnvironmentVariable("API_URL") ?? "https://default.api");
+
+// Secure cleanup
+if (config.TryDelete("ApiUrl", out var token))
+{
+    SecureWipe(token);
+}
+```
+
+### FluentDictionary Usage
+
+```csharp
+var fluentDict = FluentDictionary<string, int>.Create()
+    .TryGetOrAdd("key1", 1)
+    .TryUpdate("key1", 2)
+    .TryAddOrUpdate("key2", 3)
+    .TryDelete("key1");
+
+string json = fluentDict.Json();
+Console.WriteLine(json);  // Output: {"key2":3}
+```
+
+## 🛡️ Null-Safe Patterns
+
+```csharp
+FluentDictionary<string, int>? nullableDict = GetPotentialNullDictionary();
+
+// Safe invocation
+var value = nullableDict?.TryGetOrAdd("safe_key", 42);
+
+// Chained operations
+nullableDict?
+    .TryUpdate("key1", 100)
+    .TryAddOrUpdate("key2", 200)
+    .TryDelete("key3");
+```
+
+## 📊 Behavior Matrix
+
+| Scenario           | TryGetOrAdd       | TryUpdate         | TryAddOrUpdate    | TryDelete         |
+|--------------------|-------------------|-------------------|-------------------|-------------------|
+| **Key Exists**     | Returns existing  | Updates → `true`  | Updates → `false` | Removes → `true`  |
+| **Key Missing**    | Adds → Returns    | No-op → `false`   | Adds → `true`     | No-op → `false`   |
+| **Null Dictionary**| Returns default   | Returns `false`   | Returns `false`   | Returns `false`   |
+
+## ✅ Best Practices
+
+1. **Factory Methods** for expensive value creation:
+   ```csharp
+   // Only invoked when needed
+   cache.TryGetOrAdd("heavy-data", key => GenerateExpensiveResource());
+   ```
+2. **Atomic Batch Updates**:
+   ```csharp
+   dict?.TryUpdate("a", 1)
+        .TryUpdate("b", 2)
+        .TryAddOrUpdate("c", 3);
+   ```
+3. **Defensive Retrieval**:
+   ```csharp
+   var value = dangerousDict?.TryGetOrAdd("key", fallback) ?? fallback;
+   ```
+
+## ⚙️ Requirements
+
+- .NET Core 6.0+
+- C# 8.0+ (Nullable reference types)
+- `System.Runtime.CompilerServices.Unsafe` package (if not already referenced)
 
 ---
 
-### `TryUpdate`
+## Dictionary<TKey, TValue> Class Documentation
+
+The `Dictionary<TKey, TValue>` class is a collection of key-value pairs that are organized based on the hash code of the key.
+It provides fast lookups, additions, and deletions.
+
+### Key Features
+
+- **Fast Lookups**: Provides O(1) average time complexity for lookups.
+- **Key-Value Pairs**: Stores elements as key-value pairs.
+- **Generic**: Supports any non-nullable type for keys and any type for values.
+
+### Common Methods
+
+- **Add(TKey, TValue)**: Adds the specified key and value to the dictionary.
+- **Remove(TKey)**: Removes the value with the specified key from the dictionary.
+- **ContainsKey(TKey)**: Determines whether the dictionary contains the specified key.
+- **TryGetValue(TKey, out TValue)**: Gets the value associated with the specified key.
+- **Clear()**: Removes all keys and values from the dictionary.
+
+### Example Usage
 
 ```csharp
-public static bool TryUpdate<TKey, TValue>(
-    this Dictionary<TKey, TValue> dict,
-    TKey key,
-    TValue valueToUpdate)
+var dictionary = new Dictionary<string, int>();
+
+// Adding elements
+dictionary.TryAdd("one", 1);
+dictionary.TryAdd("two", 2);
+
+// Accessing elements
+if (dictionary.TryGetValue("one", out int value))
+{
+    Console.WriteLine($"Value for 'one': {value}");
+}
+
+// Removing elements
+dictionary.TryDelete("two");
+
+// Checking for keys
+if (dictionary.ContainsKey("two"))
+{
+    Console.WriteLine("Key 'two' exists.");
+}
+else
+{
+    Console.WriteLine("Key 'two' does not exist.");
+}
+
+// Clearing the dictionary
+dictionary.Clear();
 ```
 
-**Description**  
-Updates an existing value if the key exists.
+### Best Practices
 
-**Parameters**:
-- `dict`: Target dictionary
-- `key`: Key to update
-- `valueToUpdate`: New value to set
-
-**Returns**:  
-`true` if updated successfully, `false` otherwise
+1. **Avoid Null Keys**: Ensure that keys are non-null to avoid runtime exceptions.
+2. **Use TryGetValue for Safe Lookups**: Prefer `TryGetValue` over direct indexing to handle missing keys gracefully.
+3. **Consider Capacity**: If the number of elements is known in advance, set the initial capacity to avoid resizing.
 
 ---
 
-### `TryAddOrUpdate`
+**📄 Full Documentation**: See inline XML comments in [`DictionaryExtensions.cs`](DictionaryExtensions.cs) and [`FluentDictionary.cs`](FluentDictionary.cs).
 
-```csharp
-public static bool TryAddOrUpdate<TKey, TValue>(
-    this Dictionary<TKey, TValue> dict,
-    TKey key,
-    TValue valueToAddOrUpdate)
-```
+**🐛 Issue Tracking**: [Project Issues](https://github.com/LyttleG/FluentDictionary/issues)
 
-**Description**  
-Adds or updates a value in one atomic operation.
+**🔄 Changelog**: [CHANGELOG.md](CHANGELOG.md)
 
-**Parameters**:
-- `dict`: Target dictionary
-- `key`: Key to modify
-- `valueToAddOrUpdate`: Value to set
-
-**Returns**:  
-`true` if added new key, `false` if updated existing key
-
----
-
-### `TryDelete`
-
-```csharp
-public static bool TryDelete<TKey, TValue>(
-    this Dictionary<TKey, TValue> dict,
-    TKey key,
-    [MaybeNullWhen(false)] out TValue value)
-
-public static bool TryDelete<TKey, TValue>(
-    this Dictionary<TKey, TValue> dict, 
-    TKey key)
-```
-
-**Description**  
-Removes an entry and optionally returns its value.
-
-**Parameters**:
-- `dict`: Target dictionary
-- `key`: Key to remove
-- `value`: [out] Removed value if found
-
-**Returns**:  
-`true` if key was found and removed
-
----
-
-## Example Usage
-
-```csharp
-var inventory = new Dictionary<string, int>();
-
-// TryGetOrAdd
-int apples = inventory.TryGetOrAdd("apples", 5);  // Adds 5, returns 5
-int oranges = inventory.TryGetOrAdd("apples", 3); // Returns existing 5
-
-// TryUpdate
-bool updated = inventory.TryUpdate("apples", 10); // true
-bool failedUpdate = inventory.TryUpdate("bananas", 7); // false
-
-// TryAddOrUpdate
-bool wasUpdated = inventory.TryAddOrUpdate("apples", 15); // false
-bool wasAdded = inventory.TryAddOrUpdate("pears", 20);    // true
-wasAdded = inventory.TryAddOrUpdate("pears", 25);         // false
-
-// TryDelete
-bool removed = inventory.TryDelete("apples", out int removedCount); // true
-```
-
-## Requirements
-
-- .NET 6.0+ (uses `CollectionsMarshal` methods)
-- C# 7.3+ (nullable reference types)
-
----
-
-Created by **Gérôme Guillemin** on *January 29, 2025*  
+Created by [**Gérôme Guillemin**](https://github.com/LyttleG/) on *January 29, 2025*  
 Part of the `FluentDictionary` Namespace
 
 ## License
+
 MIT

@@ -1,12 +1,14 @@
 ﻿using FluentDictionary;
 using FluentDictionary.Extensions;
 using System.Collections.Generic;
+// ReSharper disable NotAccessedVariable
+// ReSharper disable RedundantAssignment
 
 namespace TestsFluentDictionary;
 
 public static class Program
 {
-    static void Main()
+    private static void Main()
     {
         // ----------------------------------------------------
         // Batch add/update operations
@@ -19,7 +21,7 @@ public static class Program
             .TryUpdate([2], ["Due"])
             .TryDelete([3]);
 
-        var json = std.Json; // {"1":"One","2":"Due"}
+        var json = std.Json(); // {"1":"One","2":"Due"}
         var dico = std.Dictionary;
 
         // ----------------------------------------------------
@@ -30,8 +32,23 @@ public static class Program
             .TryAddOrUpdate([5, 6], ["Five", "Six"])
             .TryDelete([4, 5]);
 
-        json = mixed.Json; // => {"6":"Six"}
+        json = mixed.Json(); // => {"6":"Six"}
+        // ReSharper disable once RedundantAssignment
         dico = mixed.Dictionary;
+
+        // ----------------------------------------------------
+        // Null-Safe Patterns
+        // ----------------------------------------------------
+        FluentDictionary<string, int>? nullableDict = null;
+
+        // Safe invocation
+        var value = nullableDict?.TryGetOrAdd("safe_key", 42);
+
+        // Chained operations
+        nullableDict?
+            //.TryUpdate("key1", 100)
+            .TryAddOrUpdate("key2", 200)
+            .TryDelete("key3");
 
         // ----------------------------------------------------
         // Create new fluent dictionary
@@ -42,7 +59,7 @@ public static class Program
             .TryAddOrUpdate(2, "Two")
             .TryDelete(2);
 
-        json = fluentDict.Json; // => {"1":"Uno"}
+        json = fluentDict.Json(); // => {"1":"Uno"}
         dico = fluentDict.Dictionary;
 
         // ----------------------------------------------------
@@ -52,7 +69,7 @@ public static class Program
         var fluentFromExisting = FluentDictionary<int, string>.Create(existingDict)
             .TryUpdate(3, "Tres");
 
-        json = fluentFromExisting.Json; // => {"3":"Tres"}
+        json = fluentFromExisting.Json(); // => {"3":"Tres"}
         dico = fluentFromExisting.Dictionary;
 
         // ----------------------------------------------------
@@ -65,15 +82,15 @@ public static class Program
         var oranges = inventory.TryGetOrAdd("apples", 3); // Returns existing 5
 
         // TryUpdate
-        var updated = inventory.TryUpdate("apples", 10);      // true
-        var failedUpdate = inventory.TryUpdate("bananas", 7); // false
+        var updated = inventory.TryUpdate("apples", k => inventory[k] + 5); // true
+        var failedUpdate = inventory.TryUpdate("bananas", 7);               // false (bananas don't exist)
 
         // TryAddOrUpdate
-        var wasUpdated = inventory.TryAddOrUpdate("apples", 15); // added: false (but updated)
-        var wasAdded = inventory.TryAddOrUpdate("pears", 20);    // added: true (not updated)
-        wasAdded = inventory.TryAddOrUpdate("pears", 25);        // added: false (but updated)
+        var wasUpdated = inventory.TryAddOrUpdate("apples", k => inventory[k] + 5); // added: false (but updated)
+        var wasAdded = inventory.TryAddOrUpdate("pears", k => inventory[k] = 20);   // added: true (not updated)
+        wasAdded = inventory.TryAddOrUpdate("pears", 25);                                // added: false (but updated)
 
         // TryDelete
-        var deleted = inventory.TryDelete("apples", out int deletedValue); // true
+        var deleted = inventory.TryDelete("apples", out var deletedValue); // true
     }
 }
