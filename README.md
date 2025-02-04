@@ -10,12 +10,19 @@ This library provides a fluent wrapper around the standard `Dictionary<TKey, TVa
 
 ## 🚀 Key Features
 
-| Method            | Null-Safe | Atomic  | Factory Support | Value Return | Behavior Summary |
-|-------------------|-----------|---------|-----------------|--------------|------------------|
-| `TryGetOrAdd`     | ✅        | ✅     | ✅              | Current/New  | Get or initialize|
-| `TryUpdate`       | ✅        | ✅     | ✅              | Success      | Mutate existing  |
-| `TryAddOrUpdate`  | ✅        | ✅     | ✅              | Add Status   | Upsert operation |
-| `TryDelete`       | ✅        | ✅     | ❌              | Success + Val| Remove cleanly   |
+| Method                     | Null-Safe | Atomic  | Factory Support | Value Return | Behavior Summary |
+|----------------------------|-----------|---------|-----------------|--------------|------------------|
+| `TryGetOrAdd`              | ✅        | ✅     | ✅              | Current/New  | Get or initialize|
+| `TryUpdate`                | ✅        | ✅     | ✅              | Success      | Mutate existing  |
+| `TryAddOrUpdate`           | ✅        | ✅     | ✅              | Add Status   | Upsert operation |
+| `TryDelete`                | ✅        | ✅     | ❌              | Success + Val| Remove cleanly   |
+| `Subscribe`                | ✅        | ✅     | ❌              | Disposable   | Observable sub   |
+| `Json`                     | ✅        | ✅     | ❌              | JSON String  | Serialize dict   |
+| `TryGetOrAdd (Batch)`      | ✅        | ✅     | ✅              | Current/New  | Batch insert/get |
+| `TryUpdate (Batch)`        | ✅        | ✅     | ✅              | Success      | Batch mutation   |
+| `TryAddOrUpdate (Batch)`   | ✅        | ✅     | ✅              | Add Status   | Batch upsert     |
+| `TryDelete (Batch)`        | ✅        | ✅     | ❌              | Success + Val| Batch delete     |
+
 
 ## 💻 Usage Examples
 
@@ -91,7 +98,54 @@ string json = fluentDict.Json();
 Console.WriteLine(json);  // Output: {"key2":3}
 ```
 
-## 🛡️ Null-Safe Patterns
+### Observing Dictionary Changes
+
+```csharp
+var fluentDictionary = FluentDictionary<string, int?>.Create();
+
+// Subscribe to changes in the dictionary.
+// The returned IDisposable is used in a using block to ensure proper cleanup.
+using (fluentDictionary.Subscribe(
+    onNext: kvp => Console.WriteLine($"Key: {kvp.Key}, Value: {kvp.Value}"),
+    onError: ex => Console.WriteLine($"Error: {ex.Message}"),
+    onCompleted: () => Console.WriteLine("Observation complete."))
+)
+{
+    // Perform several operations that trigger notifications.
+    fluentDictionary.TryGetOrAdd("Apples", 10);
+    fluentDictionary.TryAddOrUpdate("Oranges", 5);
+    fluentDictionary.TryUpdate("Apples", 15);
+    fluentDictionary.TryDelete("Oranges");
+
+    // You can also retrieve a JSON representation of the dictionary.
+    Console.WriteLine("JSON representation:");
+    Console.WriteLine(fluentDictionary.Json());
+} // The observer is unsubscribed automatically here.
+
+// After the using block, the subscription is disposed.
+// Further changes will not trigger notifications.
+fluentDictionary.TryAddOrUpdate("Bananas", 7);
+Console.WriteLine("Finished operations without memory leaks.");
+```
+
+### Batch Operations
+
+```csharp
+var stock = FluentDictionary<string, int>.Create();
+var keys = new[] {"Widget", "Gadget"};
+var values = new[] {100, 50};
+
+// Add in batch
+stock.TryGetOrAdd(keys, values);
+
+// Update in batch
+stock.TryUpdate(keys, new[] {120, 60});
+
+// Delete in batch
+stock.TryDelete(keys);
+```
+
+### 🛡️ Null-Safe Patterns
 
 ```csharp
 FluentDictionary<string, int>? nullableDict = GetPotentialNullDictionary();

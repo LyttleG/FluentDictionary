@@ -1,5 +1,6 @@
 ﻿using FluentDictionary;
 using FluentDictionary.Extensions;
+using System;
 using System.Collections.Generic;
 // ReSharper disable NotAccessedVariable
 // ReSharper disable RedundantAssignment
@@ -10,6 +11,35 @@ public static class Program
 {
     private static void Main()
     {
+        // ----------------------------------------------------
+        // Using dictionary change subscription operations
+        // ----------------------------------------------------
+        var fluentDictionary = FluentDictionary<string, int?>.Create();
+
+        // Subscribe to changes in the dictionary.
+        // The returned IDisposable is used in a using block to ensure proper cleanup.
+        using (fluentDictionary.Subscribe(
+            onNext: kvp => Console.WriteLine($"Key: {kvp.Key}, Value: {kvp.Value}"),
+            onError: ex => Console.WriteLine($"Error: {ex.Message}"),
+            onCompleted: () => Console.WriteLine("Observation complete."))
+        )
+        {
+            // Perform several operations that trigger notifications.
+            fluentDictionary.TryGetOrAdd("Apples", 10);
+            fluentDictionary.TryAddOrUpdate("Oranges", 5);
+            fluentDictionary.TryUpdate("Apples", 15);
+            fluentDictionary.TryDelete("Oranges");
+
+            // You can also retrieve a JSON representation of the dictionary.
+            Console.WriteLine("JSON representation:");
+            Console.WriteLine(fluentDictionary.Json());
+        } // The observer is unsubscribed automatically here.
+
+        // After the using block, the subscription is disposed.
+        // Further changes will not trigger notifications.
+        fluentDictionary.TryAddOrUpdate("Bananas", 7);
+        Console.WriteLine("Finished operations without memory leaks.");
+
         // ----------------------------------------------------
         // Batch add/update operations
         // ----------------------------------------------------

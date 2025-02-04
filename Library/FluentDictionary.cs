@@ -14,24 +14,15 @@ namespace FluentDictionary;
 /// Created by <c>Gérôme Guillemin</c> on <c>January 29, 2025</c>.<br/>
 /// </remarks>
 #nullable enable
-public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
+public sealed class FluentDictionary<TKey, TValue> : IObservable<KeyValuePair<TKey, TValue>>
+    where TKey : notnull
 {
-    /// <summary>
-    /// Gets the underlying dictionary instance.
-    /// </summary>
-    public Dictionary<TKey, TValue> Dictionary { get; }
+    #region Private
 
     /// <summary>
-    /// Gets the JSON representation of the dictionary.
+    /// A list of observers that have subscribed to receive notifications for changes in the dictionary.
     /// </summary>
-    public string Json()
-        => LazyJson().Value;
-
-    /// <summary>
-    /// Gets the JSON representation of the dictionary.
-    /// </summary>
-    public string Json(JsonSerializerOptions options)
-        => LazyJson(options).Value;
+    private readonly List<IObserver<KeyValuePair<TKey, TValue?>>> _observers = new(1);
 
     /// <summary>
     /// Serializes the dictionary to a lazy JSON string using optional serializer settings.
@@ -41,7 +32,21 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
     private Lazy<string> LazyJson(JsonSerializerOptions options = null!)
         => new(() => JsonSerializer.Serialize(Dictionary, options));
 
-    #region Ctors
+    /// <summary>
+    /// Notifies all subscribed observers of a change in the dictionary.
+    /// </summary>
+    /// <param name="change">
+    /// A <see cref="KeyValuePair{TKey, TValue}"/> representing the key and the new value that was added, updated, or deleted.
+    /// </param>
+    private void NotifyObservers(KeyValuePair<TKey, TValue?> change)
+    {
+        foreach (var observer in _observers)
+            observer.OnNext(change);
+    }
+
+    #endregion
+
+    #region Constructors
 
     /// <summary>
     /// Initializes a new instance of the <see cref="FluentDictionary{TKey, TValue}"/> class with an empty dictionary.
@@ -55,8 +60,7 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
     /// <param name="dictionary">The dictionary to wrap.</param>
     /// <exception cref="ArgumentNullException">Thrown if <paramref name="dictionary"/> is <c>null</c>.</exception>
     private FluentDictionary(Dictionary<TKey, TValue> dictionary)
-        => Dictionary = dictionary
-            ?? throw new ArgumentNullException(nameof(dictionary));
+        => Dictionary = dictionary ?? throw new ArgumentNullException(nameof(dictionary));
 
     /// <summary>
     /// Creates a new instance of <see cref="FluentDictionary{TKey, TValue}"/> with an empty dictionary.
@@ -74,9 +78,153 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
         => dictionary is not null
             ? new(dictionary)
             : new();
+
     #endregion
 
-    #region Single
+    #region Data
+
+    /// <summary>
+    /// Gets the underlying dictionary instance.
+    /// </summary>
+    public Dictionary<TKey, TValue> Dictionary { get; }
+
+    /// <summary>
+    /// Gets the JSON representation of the dictionary.
+    /// </summary>
+    public string Json()
+        => LazyJson().Value;
+
+    /// <summary>
+    /// Gets the JSON representation of the dictionary.
+    /// </summary>
+    public string Json(JsonSerializerOptions options)
+        => LazyJson(options).Value;
+
+    #endregion
+
+    #region Subscription to observable events
+
+    /// <summary>
+    /// Subscribes an observer to receive notifications.
+    /// </summary>
+    /// <param name="observer">The observer to subscribe.</param>
+    /// <returns>An <see cref="IDisposable"/> that unsubscribes the observer when disposed.</returns>
+    public IDisposable Subscribe(IObserver<KeyValuePair<TKey, TValue>>? observer)
+    {
+        if (observer is not null && !_observers.Contains(observer!))
+            _observers.Add(observer!);
+
+        return new InternalDelegateDisposable(() =>
+        {
+            if (observer is not null)
+                _observers.Remove(observer!);
+        });
+    }
+
+    /// <summary>
+    /// Subscribes to dictionary changes using the provided callback(s) without requiring a custom observer.
+    /// </summary>
+    /// <param name="onNext">Action to invoke when a change occurs.</param>
+    /// <param name="onError">Optional action to invoke if an error occurs.</param>
+    /// <param name="onCompleted">Optional action to invoke when the subscription is completed.</param>
+    /// <returns>An IDisposable that unsubscribes when disposed.</returns>
+    public IDisposable Subscribe(Action<KeyValuePair<TKey, TValue>> onNext, Action<Exception>? onError = null, Action? onCompleted = null)
+    {
+        if (onNext is null)
+            throw new ArgumentNullException(nameof(onNext));
+
+        return Subscribe(new InternalObserver(onNext, onError, onCompleted));
+    }
+
+    #endregion
+
+    #region Internal Delegate-Based Disposable Implementation
+
+    /// <summary>
+    /// Represents a disposable that executes a delegate when disposed.
+    /// </summary>
+    /// <remarks>
+    /// This class is useful for scenarios where you want to execute custom cleanup logic when an object is no longer needed.<br/>
+    /// The provided delegate is executed only once, and subsequent calls to <see cref="Dispose"/> have no effect.
+    /// </remarks>
+    private sealed class InternalDelegateDisposable : IDisposable
+    {
+        private Action? _disposeAction;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="InternalDelegateDisposable"/> class with the specified dispose action.
+        /// </summary>
+        /// <param name="disposeAction">The action to execute when the instance is disposed.</param>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="disposeAction"/> is <c>null</c>.</exception>
+        public InternalDelegateDisposable(Action disposeAction)
+            => _disposeAction = disposeAction ?? throw new ArgumentNullException(nameof(disposeAction));
+
+        /// <summary>
+        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.<br/>
+        /// Invokes the provided delegate and ensures it is executed only once.
+        /// </summary>
+        public void Dispose()
+        {
+            _disposeAction?.Invoke();
+            _disposeAction = null;
+        }
+    }
+
+    #endregion
+
+    #region Internal Observer Implementation
+
+    /// <summary>
+    /// Represents an internal observer that wraps lambda expressions for handling dictionary change notifications.
+    /// </summary>
+    /// <remarks>
+    /// This observer implements the <see cref="IObserver{T}"/> interface to handle notifications for additions, updates,
+    /// or deletions in the dictionary. Custom actions can be provided for processing new values, errors, and completion signals.
+    /// </remarks>
+    private sealed class InternalObserver : IObserver<KeyValuePair<TKey, TValue>>
+    {
+        private readonly Action<KeyValuePair<TKey, TValue>> _onNext;
+        private readonly Action<Exception>? _onError;
+        private readonly Action? _onCompleted;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="InternalObserver"/> class with the specified callback actions.
+        /// </summary>
+        /// <param name="onNext">The action to invoke when a new dictionary value is observed.</param>
+        /// <param name="onError">The action to invoke when an error occurs during observation.</param>
+        /// <param name="onCompleted">The action to invoke when the observation is completed.</param>
+        public InternalObserver(Action<KeyValuePair<TKey, TValue>> onNext, Action<Exception>? onError, Action? onCompleted)
+        {
+            _onNext = onNext;
+            _onError = onError;
+            _onCompleted = onCompleted;
+        }
+
+        /// <summary>
+        /// Provides the observer with a new value.
+        /// </summary>
+        /// <param name="value">The current notification containing the key-value pair change.</param>
+        public void OnNext(KeyValuePair<TKey, TValue> value)
+            => _onNext(value);
+
+        /// <summary>
+        /// Notifies the observer that an error has occurred.
+        /// </summary>
+        /// <param name="error">An exception that contains information about the error.</param>
+        public void OnError(Exception error)
+            => _onError?.Invoke(error);
+
+        /// <summary>
+        /// Notifies the observer that the provider has finished sending notifications.
+        /// </summary>
+        public void OnCompleted()
+            => _onCompleted?.Invoke();
+    }
+
+    #endregion
+
+    #region Single values
+
     /// <summary>
     /// Attempts to retrieve the value for the specified key; if the key does not exist, adds it with the provided value.
     /// </summary>
@@ -89,6 +237,7 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
     public FluentDictionary<TKey, TValue> TryGetOrAdd(TKey key, TValue? valueToAdd)
     {
         Dictionary.TryGetOrAdd(key, valueToAdd);
+        NotifyObservers(new KeyValuePair<TKey, TValue?>(key, valueToAdd));
 
         return this;
     }
@@ -109,6 +258,7 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
     public FluentDictionary<TKey, TValue> TryGetOrAdd(TKey key, Func<TKey, TValue?>? valueFactoryToAdd)
     {
         Dictionary.TryGetOrAdd(key, valueFactoryToAdd);
+        NotifyObservers(new KeyValuePair<TKey, TValue?>(key, valueFactoryToAdd!(key)));
 
         return this;
     }
@@ -124,7 +274,8 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
     /// </remarks>
     public FluentDictionary<TKey, TValue> TryUpdate(TKey key, TValue? valueToUpdate)
     {
-        Dictionary.TryUpdate(key, valueToUpdate);
+        if (Dictionary.TryUpdate(key, valueToUpdate))
+            NotifyObservers(new KeyValuePair<TKey, TValue?>(key, valueToUpdate));
 
         return this;
     }
@@ -143,7 +294,8 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
     /// <returns>The current instance of <see cref="FluentDictionary{TKey, TValue}"/> to allow method chaining.</returns>
     public FluentDictionary<TKey, TValue> TryUpdate(TKey key, Func<TKey, TValue>? valueFactoryToUpdate)
     {
-        Dictionary.TryUpdate(key, valueFactoryToUpdate);
+        if (Dictionary.TryUpdate(key, valueFactoryToUpdate))
+            NotifyObservers(new KeyValuePair<TKey, TValue?>(key, valueFactoryToUpdate!(key)));
 
         return this;
     }
@@ -160,6 +312,7 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
     public FluentDictionary<TKey, TValue> TryAddOrUpdate(TKey key, TValue? valueToAddOrUpdate)
     {
         Dictionary.TryAddOrUpdate(key, valueToAddOrUpdate);
+        NotifyObservers(new KeyValuePair<TKey, TValue?>(key, valueToAddOrUpdate));
 
         return this;
     }
@@ -180,6 +333,7 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
     public FluentDictionary<TKey, TValue> TryAddOrUpdate(TKey key, Func<TKey, TValue?>? valueFactoryToAddOrUpdate)
     {
         Dictionary.TryAddOrUpdate(key, valueFactoryToAddOrUpdate);
+        NotifyObservers(new KeyValuePair<TKey, TValue?>(key, valueFactoryToAddOrUpdate!(key)));
 
         return this;
     }
@@ -194,13 +348,16 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
     /// </remarks>
     public FluentDictionary<TKey, TValue> TryDelete(TKey key)
     {
-        Dictionary.TryDelete(key);
+        if (Dictionary.TryDelete(key))
+            NotifyObservers(new KeyValuePair<TKey, TValue?>(key, default));
 
         return this;
     }
+
     #endregion
 
-    #region IEnumerable
+    #region IEnumerable values
+
     /// <summary>
     /// Attempts to retrieve existing values for the specified keys; if a key does not exist, it adds the corresponding value from the provided collection.
     /// </summary>
@@ -222,7 +379,10 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
             var count = Math.Min(keyList.Count, valueList.Count);
 
             for (var i = 0; i < count; i++)
+            {
                 Dictionary.TryGetOrAdd(keyList[i], valueList[i]);
+                NotifyObservers(new KeyValuePair<TKey, TValue?>(keyList[i], valueList[i]));
+            }
         }
         else
         {
@@ -230,7 +390,10 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
             using var valueEnumerator = valuesToAdd.GetEnumerator();
 
             while (keyEnumerator.MoveNext() && valueEnumerator.MoveNext())
+            {
                 Dictionary.TryGetOrAdd(keyEnumerator.Current, valueEnumerator.Current);
+                NotifyObservers(new KeyValuePair<TKey, TValue?>(keyEnumerator.Current, valueEnumerator.Current));
+            }
         }
 
         return this;
@@ -261,12 +424,22 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
         if (keys is IList<TKey> keyList)
         {
             foreach (var key in keyList)
-                Dictionary.TryGetOrAdd(key, valueFactoryToAdd(key));
+            {
+                var value = valueFactoryToAdd(key);
+
+                Dictionary.TryGetOrAdd(key, value);
+                NotifyObservers(new KeyValuePair<TKey, TValue?>(key, value));
+            }
         }
         else
         {
             foreach (var key in keys)
-                Dictionary.TryGetOrAdd(key, valueFactoryToAdd(key));
+            {
+                var value = valueFactoryToAdd(key);
+
+                Dictionary.TryGetOrAdd(key, value);
+                NotifyObservers(new KeyValuePair<TKey, TValue?>(key, value));
+            }
         }
 
         return this;
@@ -293,7 +466,8 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
             var count = Math.Min(keyList.Count, valueList.Count);
 
             for (var i = 0; i < count; i++)
-                Dictionary.TryUpdate(keyList[i], valueList[i]);
+                if (Dictionary.TryUpdate(keyList[i], valueList[i]))
+                    NotifyObservers(new KeyValuePair<TKey, TValue?>(keyList[i], valueList[i]));
         }
         else
         {
@@ -301,7 +475,8 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
             using var valueEnumerator = valuesToUpdate.GetEnumerator();
 
             while (keyEnumerator.MoveNext() && valueEnumerator.MoveNext())
-                Dictionary.TryUpdate(keyEnumerator.Current, valueEnumerator.Current);
+                if (Dictionary.TryUpdate(keyEnumerator.Current, valueEnumerator.Current))
+                    NotifyObservers(new KeyValuePair<TKey, TValue?>(keyEnumerator.Current, valueEnumerator.Current));
         }
 
         return this;
@@ -330,12 +505,20 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
         if (keys is IList<TKey> keyList)
         {
             foreach (var key in keyList)
-                Dictionary.TryUpdate(key, valueFactoryToUpdate(key));
+            {
+                var value = valueFactoryToUpdate(key);
+                if (Dictionary.TryUpdate(key, value))
+                    NotifyObservers(new KeyValuePair<TKey, TValue?>(key, value));
+            }
         }
         else
         {
             foreach (var key in keys)
-                Dictionary.TryUpdate(key, valueFactoryToUpdate(key));
+            {
+                var value = valueFactoryToUpdate(key);
+                if (Dictionary.TryUpdate(key, value))
+                    NotifyObservers(new KeyValuePair<TKey, TValue?>(key, value));
+            }
         }
 
         return this;
@@ -361,7 +544,8 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
             var count = Math.Min(keyList.Count, valueList.Count);
 
             for (var i = 0; i < count; i++)
-                Dictionary.TryAddOrUpdate(keyList[i], valueList[i]);
+                if (Dictionary.TryAddOrUpdate(keyList[i], valueList[i]))
+                    NotifyObservers(new KeyValuePair<TKey, TValue?>(keyList[i], valueList[i]));
         }
         else
         {
@@ -369,7 +553,8 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
             using var valueEnumerator = valuesToAddOrUpdate.GetEnumerator();
 
             while (keyEnumerator.MoveNext() && valueEnumerator.MoveNext())
-                Dictionary.TryAddOrUpdate(keyEnumerator.Current, valueEnumerator.Current);
+                if (Dictionary.TryAddOrUpdate(keyEnumerator.Current, valueEnumerator.Current))
+                    NotifyObservers(new KeyValuePair<TKey, TValue?>(keyEnumerator.Current, valueEnumerator.Current));
         }
 
         return this;
@@ -399,12 +584,21 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
         if (keys is IList<TKey> keyList)
         {
             foreach (var key in keyList)
-                Dictionary.TryAddOrUpdate(key, valueFactoryToAddOrUpdate(key));
+            {
+                var value = valueFactoryToAddOrUpdate(key);
+                if (Dictionary.TryAddOrUpdate(key, value))
+                    NotifyObservers(new KeyValuePair<TKey, TValue?>(key, value));
+            }
         }
         else
         {
             foreach (var key in keys)
-                Dictionary.TryAddOrUpdate(key, valueFactoryToAddOrUpdate(key));
+            {
+                var value = valueFactoryToAddOrUpdate(key);
+
+                if (Dictionary.TryAddOrUpdate(key, value))
+                    NotifyObservers(new KeyValuePair<TKey, TValue?>(key, value));
+            }
         }
 
         return this;
@@ -425,9 +619,11 @@ public sealed class FluentDictionary<TKey, TValue> where TKey : notnull
             return this;
 
         foreach (var key in keys)
-            Dictionary.TryDelete(key);
+            if (Dictionary.TryDelete(key))
+                NotifyObservers(new KeyValuePair<TKey, TValue?>(key, default));
 
         return this;
     }
+
     #endregion
 }

@@ -60,7 +60,7 @@ public static class DictionaryExtensions
         if (dict is null || valueFactory is null)
             return default!;
 
-        ref TValue? valRef = ref CollectionsMarshal.GetValueRefOrAddDefault(dict, key, out bool exists);
+        ref var valRef = ref CollectionsMarshal.GetValueRefOrAddDefault(dict, key, out var exists);
 
         if (!exists)
             valRef = valueFactory(key);
@@ -114,7 +114,7 @@ public static class DictionaryExtensions
         if (dict is null || updateFactory is null)
             return false;
 
-        ref TValue valRef = ref CollectionsMarshal.GetValueRefOrNullRef(dict, key);
+        ref var valRef = ref CollectionsMarshal.GetValueRefOrNullRef(dict, key);
 
         if (Unsafe.IsNullRef(ref valRef))
             return false;
@@ -142,7 +142,7 @@ public static class DictionaryExtensions
         if (dict is null)
             return false;
 
-        ref var valRef = ref CollectionsMarshal.GetValueRefOrAddDefault(dict, key, out bool exists);
+        ref var valRef = ref CollectionsMarshal.GetValueRefOrAddDefault(dict, key, out var exists);
 
         valRef = valueToAddOrUpdate;
 
@@ -167,7 +167,7 @@ public static class DictionaryExtensions
         if (dict is null || valueFactory is null)
             return false;
 
-        ref var valRef = ref CollectionsMarshal.GetValueRefOrAddDefault(dict, key, out bool exists);
+        ref var valRef = ref CollectionsMarshal.GetValueRefOrAddDefault(dict, key, out var exists);
 
         var newValue = valueFactory(key);
         valRef = newValue;
@@ -215,5 +215,5 @@ public static class DictionaryExtensions
     /// </returns>
     public static bool TryDelete<TKey, TValue>(this Dictionary<TKey, TValue>? dict, TKey key)
         where TKey : notnull
-        => dict is not null && dict.TryDelete(key, out var _);
+        => dict is not null && dict.TryDelete(key, out _);
 }
