@@ -26,7 +26,7 @@ This library provides a fluent wrapper around the standard `Dictionary<TKey, TVa
 
 ## 💻 Usage Examples
 
-### Basic CRUD Operations
+### 🛡️ Basic CRUD Operations
 
 ```csharp
 var features = new Dictionary<string, bool>();
@@ -45,7 +45,7 @@ if (features.TryDelete("DarkMode", out var removedValue))
     Console.WriteLine($"Removed feature: {removedValue}");
 ```
 
-### Inventory Management
+### 🛡️ Inventory Management
 
 ```csharp
 private static int GetRestockCount(string key) => 42;
@@ -64,7 +64,7 @@ var widgetCount = stock.TryGetOrAdd("Widget", 0);
 var obsoleteCount = stock.TryDelete("OldModel");
 ```
 
-### Configuration Management
+### 🛡️ Configuration Management
 
 ```csharp
 private static void SecureWipe(object? key) { }
@@ -85,7 +85,7 @@ if (config.TryDelete("ApiUrl", out var token))
 }
 ```
 
-### FluentDictionary Usage
+### 🛡️ FluentDictionary Usage
 
 ```csharp
 var fluentDict = FluentDictionary<string, int>.Create()
@@ -98,7 +98,7 @@ string json = fluentDict.Json();
 Console.WriteLine(json);  // Output: {"key2":3}
 ```
 
-### Observing Dictionary Changes
+### 🛡️ Observing Dictionary Changes
 
 ```csharp
 var fluentDictionary = FluentDictionary<string, int?>.Create();
@@ -128,7 +128,7 @@ fluentDictionary.TryAddOrUpdate("Bananas", 7);
 Console.WriteLine("Finished operations without memory leaks.");
 ```
 
-### Batch Operations
+### 🛡️ Batch Operations
 
 ```csharp
 var stock = FluentDictionary<string, int>.Create();
@@ -213,7 +213,7 @@ It provides fast lookups, additions, and deletions.
 - **TryGetValue(TKey, out TValue)**: Gets the value associated with the specified key.
 - **Clear()**: Removes all keys and values from the dictionary.
 
-### Example Usage
+### 🛡️ Example Usage
 
 ```csharp
 var dictionary = new Dictionary<string, int>();
@@ -245,7 +245,7 @@ else
 dictionary.Clear();
 ```
 
-### Best Practices
+### 🛡️ Best Practices
 
 1. **Avoid Null Keys**: Ensure that keys are non-null to avoid runtime exceptions.
 2. **Use TryGetValue for Safe Lookups**: Prefer `TryGetValue` over direct indexing to handle missing keys gracefully.
